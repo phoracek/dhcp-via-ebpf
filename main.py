@@ -10,7 +10,7 @@ def main(iface):
     func = prog.load_func("prog", bcc.BPF.XDP)
 
     try:
-        prog.attach_xdp(iface, func, 0)
+        prog.attach_xdp(iface, func, 2)
         print(f"attached to {iface}, wait 30s or ^C")
         time.sleep(30.0)
     finally:

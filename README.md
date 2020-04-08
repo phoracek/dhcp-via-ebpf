@@ -12,6 +12,19 @@ eBPF, without a need to keep a process running in user-space.
 dnf install -y bcc-tools
 ```
 
+## Usage
+
+```bash
+./plug_dhcp_server \
+    --iface tap1 \
+    --client-ip 192.168.100.2 \
+    --router 192.168.100.1 \
+    --lease-time 86400 \
+    --netmask 255.255.255.0 \
+    --dns "8.8.8.8 8.8.4.4" \
+    
+```
+
 ## Test
 
 ```bash
