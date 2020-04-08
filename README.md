@@ -12,6 +12,16 @@ eBPF, without a need to keep a process running in user-space.
 dnf install -y bcc-tools
 ```
 
+## Test
+
+```bash
+ip link add v_client type veth peer name v_server
+ip link set v_client up
+ip link set v_server up
+python main.py v_server &
+dhclient v_client -v --timeout 10
+```
+
 ## TODO
 
 - [ ] Setup testing infrastracture, a simple QEMU VM connected to a TAP device

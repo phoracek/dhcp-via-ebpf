@@ -11,8 +11,8 @@ def main(iface):
 
 	try:
 		prog.attach_xdp(iface, func, 0)
-		print(f"attached to {iface}, wait 60s or ^C")
-		time.sleep(60.0)
+		print(f"attached to {iface}, wait 10s or ^C")
+		time.sleep(10.0)
 	finally:
 		prog.remove_xdp(iface)
 
