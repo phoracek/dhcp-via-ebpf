@@ -1,15 +1,3 @@
-BPF_ARRAY(counter);
-static void inc(int index) {
-	u64 *val = counter.lookup(&index);
-	if (val)
-		*val += 1;
-}
-static void set(int index, u64 to) {
-	u64 *val = counter.lookup(&index);
-	if (val)
-		*val = to;
-}
-
 #include "uapi/linux/if_ether.h"
 #include "uapi/linux/ip.h"
 #include "uapi/linux/ipv6.h"
@@ -61,10 +49,11 @@ static int parse_udp(struct udphdr *udp, void *data_end) {
 
 	dport = bpf_ntohs(udp->dest);
 	if (dport != PORT_DHCP_SERVER && dport != PORT_DHCP_CLIENT) {
+    bpf_trace_printk("not the right port\n");
 		return XDP_PASS;
 	}
 
-	inc(dport);
+  bpf_trace_printk("handling the packet, %d, %d\n", PORT_DHCP_SERVER, dport);
 
 	return XDP_PASS;
 }
