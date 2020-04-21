@@ -3,53 +3,54 @@
 #include "uapi/linux/ipv6.h"
 #include "uapi/linux/udp.h"
 
+#define BROADCAST_FLAG 0x8000
+
 /* Stolen from ./drivers/staging/gdm724x/gdm_lte.c ... */
 struct dhcp_packet {
-        u8 op;      /* BOOTREQUEST or BOOTREPLY */
-        u8 htype;   /* hardware address type.
-                     * 1 = 10mb ethernet
-                     */
-        u8 hlen;    /* hardware address length */
-        u8 hops;    /* used by relay agents only */
-        u32 xid;    /* unique id */
-        u16 secs;   /* elapsed since client began
-                     * acquisition/renewal
-                     */
-        u16 flags;  /* only one flag so far: */
-        #define BROADCAST_FLAG 0x8000
-        /* "I need broadcast replies" */
-        u32 ciaddr; /* client IP (if client is in
-                     * BOUND, RENEW or REBINDING state)
-                     */
-        u32 yiaddr; /* 'your' (client) IP address */
-        /* IP address of next server to use in
-         * bootstrap, returned in DHCPOFFER,
-         * DHCPACK by server
-         */
-        u32 siaddr;
-        u32 giaddr; /* relay agent IP address */
-        u8 chaddr[16];   /* link-layer client hardware
-                          * address (MAC)
-                          */
-        u8 sname[64];    /* server host name (ASCIZ) */
-        u8 file[128];    /* boot file name (ASCIZ) */
-        u32 cookie;      /* fixed first four option
-                          * bytes (99,130,83,99 dec)
-                          */
+  u8 op;     /* BOOTREQUEST or BOOTREPLY */
+  u8 htype;  /* hardware address type.
+              * 1 = 10mb ethernet
+              */
+  u8 hlen;   /* hardware address length */
+  u8 hops;   /* used by relay agents only */
+  u32 xid;   /* unique id */
+  u16 secs;  /* elapsed since client began
+              * acquisition/renewal
+              */
+  u16 flags; /* only one flag so far: */
+  /* "I need broadcast replies" */
+  u32 ciaddr; /* client IP (if client is in
+               * BOUND, RENEW or REBINDING state)
+               */
+  u32 yiaddr; /* 'your' (client) IP address */
+  /* IP address of next server to use in
+   * bootstrap, returned in DHCPOFFER,
+   * DHCPACK by server
+   */
+  u32 siaddr;
+  u32 giaddr;    /* relay agent IP address */
+  u8 chaddr[16]; /* link-layer client hardware
+                  * address (MAC)
+                  */
+  u8 sname[64];  /* server host name (ASCIZ) */
+  u8 file[128];  /* boot file name (ASCIZ) */
+  u32 cookie;    /* fixed first four option
+                  * bytes (99,130,83,99 dec)
+                  */
 } __packed;
 
 int prog(struct xdp_md *ctx) {
-	void *data = (void *)(long)ctx->data;
-	void *data_end = (void *)(long)ctx->data_end;
-	int ret = XDP_PASS;
-	struct ethhdr *ether = data;
-	void *after = (void *)ether + sizeof(*ether);
+  void *data = (void *)(long)ctx->data;
+  void *data_end = (void *)(long)ctx->data_end;
+  int ret = XDP_PASS;
+  struct ethhdr *ether = data;
+  void *after = (void *)ether + sizeof(*ether);
 
-	if (after > data_end) {
-		return XDP_ABORTED;
-	}
+  if (after > data_end) {
+    return XDP_ABORTED;
+  }
 
-	if (bpf_ntohs(ether->h_proto) == ETH_P_IP) {
+  if (bpf_ntohs(ether->h_proto) == ETH_P_IP) {
     struct iphdr *inet4 = after;
 
     const int PROTO_UDP = 0x11;
@@ -90,7 +91,6 @@ int prog(struct xdp_md *ctx) {
     bpf_trace_printk("ip->dst: %x\n", inet4->daddr);
     bpf_trace_printk("udp->port: %d\n", udp->dest);
     bpf_trace_printk("dhcp->op: %x\n", dhcp->op);
-    bpf_trace_printk("dhcp->ciaddr: %x\n", dhcp->ciaddr);
     bpf_trace_printk("dhcp->yiaddr: %x\n", dhcp->yiaddr);
     bpf_trace_printk("dhcp->siaddr: %x\n", dhcp->siaddr);
     bpf_trace_printk("dhcp->giaddr: %x\n", dhcp->giaddr);
@@ -109,14 +109,19 @@ int prog(struct xdp_md *ctx) {
     ether->h_source[5] = 0x7e;
 
     // Set IP source to the server IP (TODO 192.168.100.1)
-    inet4->saddr=bpf_htonl(0xB6A86401);
-
-    // Set DHCP OP to Offer
-    dhcp->op=0x02;
+    inet4->saddr = bpf_htonl(0xB6A86401);
 
     // Switch ports
     udp->source = bpf_htons(PORT_DHCP_SERVER);
     udp->dest = bpf_htons(PORT_DHCP_CLIENT);
+
+    // Set DHCP OP to Offer
+    dhcp->op = 0x02;
+
+    // Set your IP
+    dhcp->yiaddr = bpf_htonl(0xB6A86402);
+    dhcp->siaddr = bpf_htonl(0xB6A86401);
+    dhcp->giaddr = bpf_htonl(0xB6A86401);
 
     // Outcoming packet
     bpf_trace_printk("eth->src: %x\n", *ether->h_source);
@@ -125,20 +130,12 @@ int prog(struct xdp_md *ctx) {
     bpf_trace_printk("ip->dst: %x\n", inet4->daddr);
     bpf_trace_printk("udp->port: %d\n", udp->dest);
     bpf_trace_printk("dhcp->op: %x\n", dhcp->op);
-    bpf_trace_printk("dhcp->ciaddr: %x\n", dhcp->ciaddr);
     bpf_trace_printk("dhcp->yiaddr: %x\n", dhcp->yiaddr);
     bpf_trace_printk("dhcp->siaddr: %x\n", dhcp->siaddr);
     bpf_trace_printk("dhcp->giaddr: %x\n", dhcp->giaddr);
-    // dhcpchaddr
-    // dhcpopttype
-    // dhcpoptmask
-    // dhcpoptrouter
-    // dhcpoptlease
-    // dhcpoptserver
-    // dhcpoptdns
 
     return XDP_TX;
-	}
+  }
 
-	return ret;
+  return ret;
 }
